@@ -26,11 +26,13 @@ namespace PullPitcher.Pulls
 
         public async Task<List<PullReviewer>> Pitch(string link, string repoKey, string ownerId, string pullRequestId)
         {
+            Logger.LogDebug("Try Pitch:{link}, {repoKey}, {ownerId}, {pullRequestId}", link, repoKey, ownerId, pullRequestId);
             // Retrieve the pull request
             var pullRequest = (await _pullRequestRepository.WithDetailsAsync())
                 .FirstOrDefault(p => p.Number ==  pullRequestId);
             if (pullRequest != null)
             {
+                Logger.LogDebug("Pull Request Already Exists: {pullRequest}", pullRequest.Id);
                 return pullRequest.Reviewers;
             }
             
@@ -48,24 +50,27 @@ namespace PullPitcher.Pulls
             if (pitchIndex == null)
             {
                 pitchIndex = new PitchIndex(repoKey, 0);
+                Logger.LogDebug("Reset Pitch Index");
                 await _pitchIndexRepository.InsertAsync(pitchIndex);
             }
 
             int startIndex = pitchIndex.Index;
             int totalCatchers = catchers.Count;
             int attempts = 0;
-
+            Logger.LogDebug("Pitch Index: {startIndex}, {totalCatchers}", startIndex, totalCatchers);
             while (attempts < totalCatchers)
             {
                 Catcher catcher = catchers[startIndex % totalCatchers];
                 startIndex = (startIndex + 1) % totalCatchers; // move index forward for next time
-
+                Logger.LogDebug("try set catcher {catcher}", catcher.Id);
                 if (catcher.ExternalId != ownerId)
                 {
                     pitchIndex.SetIndex(startIndex); // update the index to the next catcher for future calls
 
                     // Add or update the reviewer record
                     pullRequest.AddReviewer(catcher.Id);
+
+                    Logger.LogDebug("set reviewer {reviewer}", catcher.Id);
 
                     await _pullRequestRepository.InsertAsync(pullRequest);
 
